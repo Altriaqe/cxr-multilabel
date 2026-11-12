@@ -1,0 +1,66 @@
+# DINOv2 ViT-B/14 @518 —— 换"自监督预训练"，这是通往 80 分的主线
+#
+# ## 为什么
+# 排行榜头部 82.2（反推 val ≈ 0.837），我们最好 0.8123（集成）/ 0.8081（单模型）。
+# 已排除：训练轮数、模型容量、分辨率、集成规模、医学预训练。
+# **剩下的最合理解释：预训练骨干的质量差距。**
+#   我们：ConvNeXt / ResNet / EfficientNet —— 全部 ImageNet **监督**预训练
+#   头部：DINOv2（自监督 ViT）、OpenCLIP（图文对比 ViT）
+# 11-02 答疑明确：DINOv2/ImageNet（Apache-2.0）**合规**；OpenCLIP LAION（MIT）**合规**。
+#
+# ## 为什么是 ViT-B/14 @518
+#   * patch=14 → 输入需被 14 整除，518 是原生尺寸（37×37=1369 tokens）
+#   * forward ≈ 20ms，预处理比 768 便宜 → 100ms 预算内装得下
+#   * ViT-L（300M）前向 60ms+，装不下，暂不考虑
+#
+# ## 判据
+#   T09 单模型基线 = 0.8081
+#   ≥0.815 → 找到主线了，剩下的天数全押它
+#   0.810–0.815 → 有提升，继续调（分辨率 448/784、α、增强）
+#   <0.810 → 预训练骨干假设也不成立
+#
+# ## 成本
+#   12 轮 × 约 15 分钟 ≈ 3 小时
+
+run_name: dinov2_b_518
+seed: 70
+
+data:
+  cache_size: 576      # 已有缓存只有 576/704/768/896，518 得现场建 → 用 576 再降到 518
+  image_size: 518      # patch14 原生尺寸（37×14）
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 8
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: vit_base_patch14_dinov2
+  pretrained: true
+  drop: 0.2
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 12
+  lr: 0.00005
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.5
+  distill_probs: outputs/preds/teacher_train_probs.npy
+
+eval:
+  agg: mean

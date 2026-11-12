@@ -1,0 +1,54 @@
+# ConvNeXt-S@768 + 强增强（RandAugment）——半天成本的赌注
+#
+# 动机：基线在 ep7 就见顶、之后回落 → 过拟合来得早。已知 Mixup 无效（0.7996），
+#       但 Mixup 只混合线性插值，RandAugment 是**多算子组合**，机制不同。
+#
+# 与基线的差异（其余完全一致，保持单变量）：
+#   ra_ops / ra_mag    0 → 2 / 7      （RandAugment：2 个算子，强度 7/10）
+#   scale        [0.8,1.0] → [0.65,1.0]  （更激进的缩放）
+#   crop_ratio   [0.9,1.1] → [0.85,1.15]
+#   jitter           0.2 → 0.3
+#   erasing         0.25 → 0.35
+#
+# 判据：单体 TTA ≥ 0.8065（基线 0.8050）才有意义；<0.8035 就关闭这条线。
+# 成本：12 轮 × 11.5 分钟 ≈ 2.3 小时（半天）
+
+run_name: convnext_s_768_strongaug
+seed: 45
+
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 8
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 12
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+eval:
+  agg: mean

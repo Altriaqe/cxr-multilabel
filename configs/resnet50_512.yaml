@@ -1,0 +1,40 @@
+# ResNet50 基线 @512
+# 8GB 显存下的默认配置：batch 16 + 梯度累积 2 => 等效 batch 32
+
+run_name: resnet50_512
+seed: 42
+
+data:
+  cache_size: 576          # memmap 缓存的边长
+  image_size: 512          # 实际送入网络的尺寸
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2            # 每个 worker 都要加载 CUDA DLL；本机单个进程吞吐已够喂满 GPU
+  scale: [0.80, 1.0]       # RandomResizedCrop 面积比例
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: resnet50
+  pretrained: true
+  drop: 0.4
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 15
+  lr: 0.0003
+  weight_decay: 0.0001
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  ema_decay: 0.999      # 权重指数滑动平均
+  a_decay: 0.999      # 权重指数滑动平均：压掉最后一轮没训好的风险
+  loss: bce                # bce | focal | asymmetric
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: mean                # mean | max | lse | logit_mean

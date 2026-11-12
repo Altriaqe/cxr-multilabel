@@ -1,0 +1,50 @@
+# 蒸馏学生 #6：ConvNeXt-S@768，α=0.7 + 强增强
+#
+# 依据：S@768 α=0.5 只到 0.8049（比 T@768 的 0.8049 差不多），说明 S 的容量
+#       在蒸馏下没吃满——可能因为软标签太"平"，S 更容易过拟合。
+#       这版给 S 配 α=0.7 + RandAugment（强正则），看能不能把容量发挥出来。
+#
+# 判据：≥0.807 才有意义（T@768 已到 0.8049，预期更高）
+
+run_name: distill_s768_a07_aug
+seed: 48
+
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 8
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 14
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.7
+  distill_probs: outputs/preds/teacher_train_probs.npy
+
+eval:
+  agg: mean

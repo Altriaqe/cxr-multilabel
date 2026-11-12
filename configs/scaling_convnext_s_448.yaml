@@ -1,0 +1,47 @@
+# ConvNeXt-S@448 + 强增强 —— 数据量扫描实验的统一配方
+#
+# 目的：与 BiomedCLIP@448 做"同等条件"对比，只变「初始化」与「数据量」。
+# 与 convnext_s_768_strongaug 的差异只有两处：
+#   data.image_size  768 → 448
+#   data.cache_size  768 → 576
+# 其余（增强强度、优化器、drop、amp）完全一致，保证单变量。
+
+run_name: scaling_convnext_s_448
+seed: 45
+
+data:
+  cache_size: 768          # 用云端已有的 768 缓存（448 由 transform 在线缩放）
+  image_size: 448
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 4
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 6
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 0.5
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+eval:
+  agg: mean

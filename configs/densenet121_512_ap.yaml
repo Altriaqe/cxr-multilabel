@@ -1,0 +1,59 @@
+# DenseNet121 @512 + AP 过采样（Exp013）
+#
+# 目的：在**已验证最强的多样性成员**（DN121，9 类 0.7955）上复现 AP 过采样的收益。
+#   * 依据：ConvNeXt 实验显示 AP 过采样对 AP 子集有正贡献（+0.008）
+#   * test 中 AP 占 62.6%，valid 59.1%，而 AP 组 AUC 长期偏低
+#   * 单变量对照：与 exp002_densenet121_512 相比只多 `ap_oversample: 1.5`
+#
+# ## ⚠️ lr 必须用 3e-4，不是 4e-5
+# 4e-5 是 ConvNeXt 专属的药方（它用 LayerNorm，全模型施加头部级 lr 会塌缩成常数输出）。
+# DenseNet121 有 BatchNorm，3e-4 是它已验证的最佳值（exp002 用的就是 3e-4）。
+# **把 ConvNeXt 的配置直接抄过来会把 DN121 训废。**
+#
+# ## 为什么只跑 7 轮
+# exp002 跑了 20 轮（4.5h）得到 0.7955。这次时间预算只有 1.5h，压到 7 轮。
+# 余弦调度会按 7 轮压缩，所以第 7 轮的位置比"20 轮方案里的第 7 轮"更靠后，
+# 收敛程度不会线性打折。目标不是打赢 exp002，而是**测出 AP 过采样在 DN121 上的增量**。
+#
+# 实测节奏：DN121@512 bs16 约 13.4 分钟/轮 -> 7 轮约 1.6 小时。
+# 显存峰值约 5.3 GB，8 GB 卡安全。
+
+run_name: exp013_dn121_ap
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+  ap_oversample: 1.5
+
+model:
+  arch: densenet121
+  pretrained: true
+  drop: 0.2
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 7
+  lr: 0.0003            # <<< DN121 用 3e-4（不是 ConvNeXt 的 4e-5）
+  weight_decay: 0.0001  # 与 exp002 一致；ConvNeXt 的 0.05 不适用于 BN 网络
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16       # 数值更保险；DN121 在 fp16 下也能跑，两者皆可
+  val_fp32: true        # 验证强制 fp32 -> hashes.csv 的 val_auc 可精确复现
+  ema_decay: 0.999      # 额外产出 _ema.pth，不影响 best.pth 的选择
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

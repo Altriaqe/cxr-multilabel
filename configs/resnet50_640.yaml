@@ -1,0 +1,48 @@
+# ResNet50 @640 —— 分辨率阶梯的中间点
+#
+# 背景：768 那次失败的主因是 lr 设错（等效 batch 没变却把 3e-4 降到 2e-4），
+# 不是"高分辨率不行"。640 是更稳的一步：算力 1.56x，单 epoch 约 14 分钟。
+#
+# 关键修正（相对 resnet50_768.yaml）：
+#   * lr 回到 3e-4（等效 batch 仍是 32，按线性缩放不该降）
+#   * cache 704 > image 640，给 RandomResizedCrop 留裁剪余量（和 576/512 的关系一致）
+#   * batch 8 + 累积 4 = 等效 32；640@bs8 显存约 4.5 GB，8 GB 卡安全
+#
+# 前置：需要先建 704 缓存（约 15 GB，20~25 分钟）
+#   python tools/build_cache.py --size 704 --workers 20
+
+run_name: resnet50_640
+seed: 42
+
+data:
+  cache_size: 704
+  image_size: 640
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: resnet50
+  pretrained: true
+  drop: 0.4
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 15
+  lr: 0.0003
+  weight_decay: 0.0001
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

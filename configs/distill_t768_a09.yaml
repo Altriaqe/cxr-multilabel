@@ -1,0 +1,48 @@
+# 蒸馏学生 #5：ConvNeXt-T@768，α=0.9（几乎纯软标签）
+#
+# 依据：α=0.5 → 0.8049；α=0.7 明显更强（ep4 就 0.8029）。
+# 这条线说明"教师的软标签比硬标签信息更多"。α=0.9 是下一个测试点。
+#
+# 风险：α 太高会失去硬标签的校准，可能在弱类上漂移；先看 ep4–6 的曲线。
+#
+# 耗时：12 轮 × 7.3 分钟 ≈ 88 分钟
+
+run_name: distill_t768_a09
+seed: 47
+
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 8
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: convnext_tiny
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 12
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.9
+  distill_probs: outputs/preds/teacher_train_probs.npy
+
+eval:
+  agg: mean

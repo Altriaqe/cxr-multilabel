@@ -1,0 +1,49 @@
+# ConvNeXt-T @512 + AP 过采样（规则第 4 条明确允许）
+#
+# 依据：
+#   * ConvNeXt-T 是 9 类口径下最强单模型（0.7994），且在弱类上最好：纵隔 0.737 / 肺炎 0.776
+#   * test 中 AP 占 62.6%，valid 59.1%，而 AP 组 AUC 只有 0.736（PA 组 0.865）
+#   * 单变量对照：与 convnext_tiny_512 相比**只多 ap_oversample**
+#
+# 注意：过采样会放大 epoch 样本量，12 轮实际耗时可能比基准的 2.4h 长（按 3h 估）。
+# 显存峰值约 7.1 GB；OOM 时 batch 16→12、grad_accum 2→3。
+
+run_name: convnext_t_ap
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+  ap_oversample: 1.5
+
+model:
+  arch: convnext_tiny
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 12
+  lr: 0.00004          # 与成功那次一致（4e-5）；配置里写 4e-4 会过冲
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16      # 与已验证成功的 exp010 一致（LayerNorm 架构数值更稳）
+  val_fp32: true       # 验证强制 fp32 -> hashes.csv 的 val_auc 可精确复现（审计要求）
+  ema_decay: 0.999     # 权重滑动平均，额外产出 _ema.pth；不影响 best.pth 的选择
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

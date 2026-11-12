@@ -1,0 +1,62 @@
+# 第十一代：S@896，36 轮，**旧教师**（12 轮版）—— 单变量测"轮数"
+#
+# ## 为什么不再用 v2 教师
+# exp068（24 轮 + v2 教师）= 0.8111  <  exp066（24 轮 + 旧教师）= 0.8134
+# 即：教师更强，学生反而更差（−0.0023）。这是第 4 次同类负结果，
+# 说明本任务上蒸馏传递是负向的，**教师这条线彻底关闭**。
+#
+# ## 本实验的唯一目的
+# 测"S 的轮数上限"：24 轮已到 0.8134（峰值在 ep22），36 轮是否还能涨。
+# 与 exp066 的差别**只有轮数**（教师、数据、增强、lr 全同）。
+#
+# ## 判据
+#   ≥0.8140 → 轮数还有空间，可考虑更长的日程
+#   0.8130–0.8140 → 24 轮已是最优，轮数维度关闭
+#   <0.8130 → 36 轮过头，确认 24 轮最优
+#
+# ## 成本
+#   36 × 约 19.4 分钟 ≈ 11.6 小时（16:30 起 → 11-11 04:00 完成）
+
+run_name: s896_36ep_old
+seed: 160
+
+data:
+  cache_size: 896
+  image_size: 896
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 8
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: convnext_small.in12k_ft_in1k
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: true
+
+train:
+  epochs: 36
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 3.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  # 旧教师（12 轮版的 3×896 集成）—— exp066 用的就是它
+  distill_alpha: 0.9
+  distill_probs: outputs/preds/teacher2_train_probs.npy
+
+eval:
+  agg: mean

@@ -1,0 +1,58 @@
+# ConvNeXt-S @768（云端阶段二）
+#
+# ## 为什么重试 768
+#
+# 10-21 那次 R50@768 失败（ep1 只有 0.7215），当时归因于"太慢赶不上窗口"，
+# 但真正的问题是 **lr 被降到 2e-4**：bs8 x grad_accum 4 = 等效 32，与 512 的
+# bs16 x accum 2 完全相同，按线性缩放 lr 本就该保持 3e-4。那次实验的结论无效。
+#
+# 这次 lr 与 512 保持一致（4e-5），做成干净的「只改分辨率」对照。
+#
+# ## 目标类别
+#
+# 本项目最弱的四类恰好都依赖细节分辨率：
+#   肺部阴影 0.706 / 纵隔心影增大 0.709 / 肺炎 0.732 / 心影扩大 0.750
+# 而强项（胸腔积液 0.899、气胸 0.881）都是"大范围、高对比"的征象。
+# 升分辨率若有效，应主要体现在前两类上——评估时重点看这两类。
+#
+# ## 显存
+#
+# ConvNeXt-S@512 bs32 约 9-10 GB；768 的激活约 (768/512)^2 = 2.25 倍，
+# 故 bs16 x accum 2 -> 峰值约 11-12 GB，vGPU-32GB 安全。
+
+run_name: convnext_small_768
+seed: 42
+
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 8
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 10
+  lr: 0.00004           # 与 512 一致（上次 R50@768 失败是错把 lr 降到 2e-4）
+  weight_decay: 0.05
+  grad_accum: 2         # bs16 x 2 = 等效 32
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false       # 云端验证省时间；最终模型另跑一次 fp32 写审计
+  loss: bce
+  pos_weight: false
+
+eval:
+  agg: logit_mean

@@ -1,0 +1,14 @@
+run_name: ssl_smoke
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  num_workers: 0
+model:
+  arch: convnext_small
+  pretrained: true
+  feat_dim: 256
+train:
+  epochs: 1
+  lr: 0.001
+  temperature: 0.2

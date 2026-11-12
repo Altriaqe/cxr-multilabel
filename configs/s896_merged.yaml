@@ -1,0 +1,58 @@
+# 第四代：ConvNeXt-S@896 + train+valid 合训（合规依据：11-06 答疑「验证集可以参与训练」）
+#
+# ## 为什么
+# 我们已把容量 / 分辨率 / 预训练 / 蒸馏 / 集成都试到尽头，val 卡在 0.8147。
+# 唯一还没动的是**数据量**：把 valid 的 859 study（4.6%）并入训练。
+#
+# ## 代价
+# 合训后 valid 不再是干净验证集 → train.py 会自动 no_val（禁用选模/早停）。
+# 因此**必须固定轮数**：沿用同配方在 train-only 上的收敛位置（ep11–12 见顶且平），
+# 直接取最后一轮。
+#
+# ## 判据
+# 无法本地诚实评估。只能靠"提交后看线上分数"（daily 一枪）。
+#   现有：双 896（S+T）= 77.83
+#   新：S@896(train+valid) + T@896(train) 的集成 → 明天交，看是否 >77.83
+
+run_name: s896_merged
+seed: 130
+
+data:
+  cache_size: 896
+  image_size: 896
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 8
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: convnext_small.in12k_ft_in1k
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: true
+
+train:
+  epochs: 12
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.9
+  distill_probs: outputs/preds/teacher2_train_probs.npy
+
+eval:
+  agg: mean

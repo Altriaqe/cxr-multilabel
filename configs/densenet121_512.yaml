@@ -1,0 +1,49 @@
+# DenseNet121 @512 —— 架构对比 + 集成候选（Exp002）
+#
+# 选它的理由（实测吞吐，bs16 @512 AMP）：
+#   densenet121     58.6 img/s   8.6 min/epoch   峰值 5.33 GB
+#   resnet50        62.9 img/s   8.0 min/epoch   峰值 3.82 GB
+#   efficientnet_b3 19.5 img/s  26.0 min/epoch   峰值 6.88 GB  <- depthwise 卷积在本卡上利用率很差，放弃
+# DenseNet121 是 CheXNet 的原始骨干，7M 参数，速度与 ResNet50 接近，
+# 且与 ResNet50 的结构差异足够大，做集成时多样性好。
+#
+# 相比 Exp001 只改两点：换骨干、epochs 15 -> 20（DenseNet 收敛更慢，且给集成用需要更强单体）。
+
+run_name: densenet121_512
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: densenet121
+  pretrained: true
+  drop: 0.2
+  drop_path: 0.0
+  # 实测 bs16 @512 峰值 5.33 GB，加上桌面占用仍在 8 GB 内；
+  # 开 gradient checkpointing 会多花 20~30% 时间，先不开，OOM 再回退。
+  grad_checkpointing: false
+
+train:
+  epochs: 20
+  lr: 0.0003
+  weight_decay: 0.0001
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  ema_decay: 0.999      # 权重指数滑动平均
+  a_decay: 0.999      # 权重指数滑动平均：压掉最后一轮没训好的风险
+  loss: bce
+  pos_weight: false
+
+eval:
+  agg: logit_mean            # Exp001 上实测最优（0.7965 vs mean 0.7959 / max 0.7893）

@@ -1,0 +1,45 @@
+﻿# ResNet50 @512 + 换随机种子（Exp006）—— 用于 seed 平均
+#
+# 目的：与 Exp001（seed 42, 0.7959）做 seed 平均。两次独立训练的集成
+# 通常能稳定拿到 +0.005 左右，且**方差远小于换架构/换预训练**。
+# 这是目前确定性最高的一条路。
+#
+# 与 Exp001 唯一差别：seed 42 -> 43，epochs 15 -> 16（多一轮让余弦尾部更充分）。
+# ResNet50 基线 @512
+# 8GB 显存下的默认配置：batch 16 + 梯度累积 2 => 等效 batch 32
+
+run_name: resnet50_512_seed43
+seed: 43
+
+data:
+  cache_size: 576          # memmap 缓存的边长
+  image_size: 512          # 实际送入网络的尺寸
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2            # 每个 worker 都要加载 CUDA DLL；本机单个进程吞吐已够喂满 GPU
+  scale: [0.80, 1.0]       # RandomResizedCrop 面积比例
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: resnet50
+  pretrained: true
+  drop: 0.4
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 16
+  lr: 0.0003
+  weight_decay: 0.0001
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  loss: bce                # bce | focal | asymmetric
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: mean                # mean | max | lse | logit_mean

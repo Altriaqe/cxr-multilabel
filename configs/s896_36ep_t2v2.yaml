@@ -1,0 +1,64 @@
+# 第九代：S@896，36 轮，教师换成本代（24 轮版）
+#
+# ## 文献依据
+# ① Born-Again Networks（Furlanello et al., ICML 2018）：学生用教师软标签训练后
+#    可以超过教师，迭代做世代传递。本实验是世代 2。
+# ② 蒸馏文献的共识：**学生的训练日程通常应长于教师**——软标签信息更丰富、
+#    但需要更多步才能拟合充分。我们已验证 12 轮 → 24 轮有效（+0.0014），
+#    所以学生继续拉到 36 轮，而教师保持 24 轮。
+#
+# ## 与 exp066 的差别
+#   exp066：24 轮学生，蒸馏自 12 轮教师 → 0.8134
+#   exp068：36 轮学生，蒸馏自 24 轮教师（teacher2v2）→ 目标 0.815+
+#   唯一变量：轮数 24→36、warmup 2→3、教师换代
+#
+# ## 期望
+#   S36v2 单模型 ≈ 0.8145 ~ 0.8155
+#   + T@896(24 轮) 集成 → 0.8155 ~ 0.8165
+#   + 患者平滑 → 0.818 ~ 0.819 → 线上 78.1 ~ 78.3
+#
+# ## 成本
+#   36 × 约 19.4 分钟 ≈ 11.6 小时（08:30 起 → 20:00 完成）
+
+run_name: s896_36ep_v2
+seed: 180
+
+data:
+  cache_size: 896
+  image_size: 896
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 8
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: convnext_small.in12k_ft_in1k
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: true
+
+train:
+  epochs: 36
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 3.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.9
+  distill_probs: outputs/preds/teacher2v2_train_probs.npy
+
+eval:
+  agg: mean

@@ -1,0 +1,48 @@
+# 蒸馏学生 #10：DenseNet121@768（换家族：DenseNet）
+#
+# 依据：融合吃"差异"。现有成员是 ConvNeXt（T/S/EfficientNet 也偏卷积残差），
+#       DenseNet 的密集连接 + 更小的感受野是完全不同的误差结构。
+#       DN121@512 单体只有 0.7955，但 768 + 蒸馏可能到 0.80 上下。
+#
+# 注意：DenseNet 在 768 下显存吃紧 → bs8 + grad_checkpointing。
+# 成本：12 轮 × 约 15 分钟 ≈ 3 小时
+
+run_name: distill_dn121_768
+seed: 52
+
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 8
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: densenet121
+  pretrained: true
+  drop: 0.2
+  drop_path: 0.0
+  grad_checkpointing: true
+
+train:
+  epochs: 12
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.5
+  distill_probs: outputs/preds/teacher_train_probs.npy
+
+eval:
+  agg: mean

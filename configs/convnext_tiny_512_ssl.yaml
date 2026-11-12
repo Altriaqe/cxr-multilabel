@@ -1,0 +1,58 @@
+# ConvNeXt-T @512 —— 用自有数据 SSL 权重初始化（Exp014）
+#
+# ## 这条线的逻辑
+# 先用 train 划分做 SimCLR 自监督预训练（`train_ssl.py`），得到一个"见过胸片"的骨干，
+# 再用正常监督流程微调（7 轮）。对照基线是"ImageNet 直接微调"的 ConvNeXt（9类 0.7994）。
+#
+# 合规：SSL 只用了 cxr_first/train，valid/test 完全没参与；初始化来自 ImageNet（允许）。
+#
+# ## 与 convnext_tiny_512 的差别（只有一处）
+#   训练启动时多传 `--init-from checkpoints/ssl_convnext_t_384/last.pth`
+#   其余（arch / lr / drop / 增强 / 轮数）保持与 exp010 一致，做成干净对照
+#
+# ## 判据（方案文档 §8）
+#   单模型 9类+TTA ≥ 0.802  -> 进集成
+#   < 0.795                -> 直接放弃这条线，不再投入
+#
+# 用法：
+#   python train.py --config configs\convnext_tiny_512_ssl.yaml ^
+#       --init-from checkpoints\ssl_convnext_t_384\last.pth --run-name exp014_convnext_ssl
+
+run_name: convnext_t_ssl
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: convnext_tiny
+  pretrained: false       # 骨干由 --init-from 的 SSL 权重接管，不加载 ImageNet
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 10              # exp010 的无SSL基线是 ep9 见顶，7 轮会停在上升段
+  lr: 0.00004             # 与 exp010 一致：ConvNeXt + LayerNorm，4e-5 是已验证不塌缩的值
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 0.5      # 骨干已有意义，warmup 可以短一些
+  amp: true
+  amp_dtype: bf16
+  val_fp32: true
+  ema_decay: 0.0          # 按 docs/开始局_2026-10-24.md §E5「明确停止做的事」关闭 EMA
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

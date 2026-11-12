@@ -1,0 +1,58 @@
+# ConvNeXt-B @512（云端阶段三：容量再上一档）
+#
+# ## 逻辑
+#
+# ConvNeXt-T 27.8M -> 单体 9类 0.7994
+# ConvNeXt-S 49.5M -> 阶段一在验
+# ConvNeXt-B 88.6M -> 本配置
+#
+# 同一族里容量翻倍的平滑升级，比换族（ResNet/DenseNet/Swin）风险低：
+# 预处理、lr 区间、增强强度都可以沿用。
+#
+# ## 显存
+#
+# ConvNeXt-B@512 bs16 峰值约 13-15 GB，必须开 grad_checkpointing
+# （用重算换显存，慢约 25% 但能跑）。vGPU-32GB 有余量。
+#
+# ## lr 为什么降到 3e-5
+#
+# 容量越大对 lr 越敏感（ConvNeXt 全 LayerNorm，1e-4 起就会塌缩）。
+# T 和 S 用 4e-5，B 降到 3e-5 留余量。若前 3 轮 loss 不降或 val 卡在 0.5，
+# 优先怀疑 lr 过高，降到 2e-5 重试。
+
+run_name: convnext_base_512
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 8
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: convnext_base
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: true      # B 模型必须开，否则显存不够
+
+train:
+  epochs: 10
+  lr: 0.00003
+  weight_decay: 0.05
+  grad_accum: 2                 # bs16 x 2 = 等效 32
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+eval:
+  agg: logit_mean

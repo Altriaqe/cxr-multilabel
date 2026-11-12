@@ -1,0 +1,42 @@
+# 基线配置文件
+
+# 模型配置
+model:
+  name: resnet50
+  pretrained: true
+  num_classes: 10
+
+# 数据配置
+data:
+  train_csv: data/raw/train.csv
+  val_csv: data/raw/val.csv
+  test_csv: data/raw/test.csv
+  train_image_dir: data/raw/train/images
+  val_image_dir: data/raw/val/images
+  test_image_dir: data/raw/test/images
+  image_size: 512
+  batch_size: 16
+  num_workers: 4
+
+# 训练配置
+training:
+  epochs: 50
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  optimizer: adamw
+  scheduler: reduce_on_plateau
+  loss: bce  # bce, focal, asymmetric
+  early_stopping_patience: 10
+  gradient_clip: 1.0
+
+# 推理配置
+inference:
+  threshold: 0.5
+  batch_size: 32
+  tta: false  # Test Time Augmentation
+
+# 路径配置
+paths:
+  checkpoint_dir: checkpoints
+  log_dir: logs
+  output_dir: outputs

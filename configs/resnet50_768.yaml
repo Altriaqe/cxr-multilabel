@@ -1,0 +1,49 @@
+# ResNet50 @768 —— 分辨率提升（Exp003）
+#
+# 依据：本项目最弱的四类恰好都是"依赖细节分辨率"的征象
+#   肺部阴影 0.706 / 纵隔心影增大 0.709 / 肺炎 0.732 / 心影扩大 0.750
+# 而强项（胸腔积液 0.899、气胸 0.881）是"大范围、高对比"的征象。
+# 这类分布通常说明模型在 512 上还没吃满可用信息，升分辨率是性价比最高的一步。
+#
+# 显存预算（实测外推）：ResNet50@512 bs16 峰值 3.82 GB；
+# 768 的激活约为 (768/512)^2 = 2.25 倍，故 bs8 约 4.3 GB，安全。
+# 用梯度累积 4 补回等效 batch 32。
+#
+# 前置条件：需先建 768 缓存（约 20 GB）
+#   python tools/build_cache.py --size 768 --workers 20
+
+run_name: resnet50_768
+seed: 42
+
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: resnet50
+  pretrained: true
+  drop: 0.4
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 15          # 与 Exp001 的 15 epoch 对齐，做成一次干净的「只改分辨率」A/B
+                      # 实测 bs8 @768 = 20.5 img/s -> 24.7 min/epoch -> 15 轮约 6.2 小时
+  lr: 0.0002          # 分辨率升高、batch 变小时下调学习率
+  weight_decay: 0.0001
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  loss: bce
+  pos_weight: false
+
+eval:
+  agg: logit_mean

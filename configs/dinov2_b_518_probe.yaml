@@ -1,0 +1,57 @@
+# DINOv2 ViT-B/14 @518 —— 线性探针（冻结骨干，只训分类头）
+#
+# ## 为什么改成这个
+# 直接微调两次都失败：
+#   lr=5e-5 → ep1 0.6036
+#   lr=2e-4 → ep2–5 0.55–0.59（更差，骨架被破坏）
+# ViT 微调在我们的配方下不收敛。但"DINOv2 特征强不强"这个假设还没被验证——
+# 线性探针是最干净的检验：特征好 → 只训一个线性头就能到 0.80+。
+#
+# ## 实现
+# trainer 的 `freeze_backbone_epochs` 会冻结所有 `backbone.*`（名称含 "head" 的除外），
+# timm ViT 的分类头正是 `backbone.head` → 只它可训练。
+# 线性探针需要更高 LR：5e-4（骨干已冻结，不会破坏特征）。
+#
+# ## 判据（6 轮 × 8.7 分钟 ≈ 52 分钟）
+#   ≥0.805 → DINOv2 特征确实强，问题在微调配方 → 再做 layer-wise LR 微调
+#   0.790–0.805 → 特征一般，不足以超越 ConvNeXt
+#   <0.790 → DINOv2 假设否定，彻底放弃 ViT 路线
+
+run_name: dinov2_b_518_probe
+seed: 71
+
+data:
+  cache_size: 576
+  image_size: 518
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 8
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: vit_base_patch14_dinov2
+  pretrained: true
+  drop: 0.0
+  drop_path: 0.0
+  grad_checkpointing: false
+
+train:
+  epochs: 6
+  lr: 0.0005
+  weight_decay: 0.0
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 0.5
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 6      # ≥ epochs → 全程冻结骨干 = 线性探针
+  distill_alpha: 0.0             # 干净验证特征质量，不加软标签
+
+eval:
+  agg: mean

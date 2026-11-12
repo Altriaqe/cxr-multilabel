@@ -1,0 +1,39 @@
+# EfficientNet-B3 @512 —— 架构对比（Exp2xx）
+# 参数量 10.7M / fp32 41MB，比 ResNet50 小一半，若 AUC 相当则更适合最终提交（模型 ≤500MB 很宽松，
+# 但小模型推理更快，更容易满足 T4 上 ≤100ms/张）。
+
+run_name: efficientnet_b3_512
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: efficientnet_b3
+  pretrained: true
+  drop: 0.4
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 15
+  lr: 0.0003
+  weight_decay: 0.0001
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: mean

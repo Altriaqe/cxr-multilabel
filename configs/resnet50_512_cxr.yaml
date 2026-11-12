@@ -1,0 +1,57 @@
+# ResNet50 + CXR 医学预训练（Exp005）
+#
+# ## 动机
+# ImageNet 学到的是自然图像纹理；胸部 X 光片是单通道、低对比、以解剖结构为主的影像。
+# 本实验改用 torchxrayvision 的 `resnet50-res512-all` 权重 —— 它在
+# PadChest/NIH/RSNA/SIIM/VIN 等真实 CXR 数据集上训练过，且**分辨率正好 512**，
+# 与我们的管线完全对齐。
+#
+# 这是目前已知最有希望突破 0.81 的一条路：AP 组（最难、test 中最多）是
+# ImageNet 特征的明显短板（AUC 0.7223 vs PA 的 0.8684）。
+#
+# ## 与 Exp001 的差别
+#   1. arch: resnet50 -> xrv_resnet50（CXR 预训练）
+#   2. 预处理自动切换：**1 通道 + [-1024,1024]**（不再是 3 通道 ImageNet 归一化）
+#   3. epochs 15 -> 20
+#   4. drop 0.4 -> 0.3（预训练更贴近任务，过拟合会更快，dropout 略降配合 lr）
+# 其余（lr、增强强度、损失、调度）保持一致。
+#
+# ## 注意
+#   * 预处理约定不同，混用不会报错但精度会崩 —— 由 `build_any_*_transform` 按 arch 自动选择
+#   * 权重已在本地缓存：~/.torchxrayvision/models_data/resnet50...pt
+
+run_name: resnet50_512_cxr
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: xrv_resnet50        # <<< CXR 预训练
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.0            # CXRResNetClassifier 无 drop_path 参数
+  grad_checkpointing: false
+
+train:
+  epochs: 20
+  lr: 0.0002                # 预训练更贴近任务，lr 调低避免冲掉特征
+  weight_decay: 0.0001
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

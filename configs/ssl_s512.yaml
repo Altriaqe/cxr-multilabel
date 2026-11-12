@@ -1,0 +1,29 @@
+# 自监督预训练（SimCLR）：ConvNeXt-Small，官方训练集，512 分辨率
+#
+# ## 合规
+# 《补充说明》第四条：在官方训练集上做自监督预训练/续训是允许的。
+# 只用 train split（30,344 张），不碰 valid/test，不用任何外部数据。
+#
+# ## 为什么 512
+# SSL 阶段不需要高分辨率（学的是不变性），512 比 896 快 3 倍。
+# 微调阶段再上 896，用 --init-from 加载这里产出的骨干。
+#
+# ## 成本
+# 30,344 图 / bs=128 → 每轮约 237 步；100 轮 ≈ 5–6 小时（32GB vGPU）
+
+run_name: ssl_s512
+data:
+  cache_size: 576      # 已有缓存；transform 再裁到 512
+  image_size: 512
+  batch_size: 128
+  num_workers: 8
+
+model:
+  arch: convnext_small
+  pretrained: true     # 从 ImageNet 权重出发做"续训"（合规）
+  feat_dim: 256
+
+train:
+  epochs: 100
+  lr: 0.001
+  temperature: 0.2

@@ -1,0 +1,41 @@
+run_name: b768_in22k_a09_aug
+seed: 85
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 8
+  scale:
+  - 0.65
+  - 1.0
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio:
+  - 0.85
+  - 1.15
+  ra_ops: 2
+  ra_mag: 7
+model:
+  arch: convnext_base.fb_in22k_ft_in1k
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+train:
+  epochs: 12
+  lr: 4.0e-05
+  weight_decay: 0.05
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+  distill_alpha: 0.9
+  distill_probs: outputs/preds/teacher_train_probs.npy
+eval:
+  agg: mean

@@ -1,0 +1,50 @@
+# 蒸馏学生 #11：EfficientNet-B3@896（家族 × 分辨率 双重差异）
+#
+# 依据（11-01）：
+#   * S896_aug 单体 0.8076，进 6 模型融合带来 **+0.0008**（近期最大增益）
+#   * EffB3@768 单体 0.7978，进融合只带来 +0.0002
+#   → 高分辨率的差异比家族差异更值钱
+# 这版把两者叠加：EffB3 的 MBConv + 896 的高分辨率。
+#
+# 判据：进 7/8 模型融合后 ≥0.8130
+# 成本：12 轮 × 约 15 分钟 ≈ 3 小时
+
+run_name: distill_effb3_896
+seed: 53
+
+data:
+  cache_size: 896
+  image_size: 896
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 8
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: efficientnet_b3
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: true
+
+train:
+  epochs: 12
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.5
+  distill_probs: outputs/preds/teacher_train_probs.npy
+
+eval:
+  agg: mean

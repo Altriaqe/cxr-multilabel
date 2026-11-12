@@ -1,0 +1,53 @@
+# 蒸馏学生 #9：ConvNeXt-S@896 + 强增强（换分辨率，追"不同"）
+#
+# 依据：896 从头训失败（0.7993），但配合蒸馏 + 强增强可能不同——
+#       软标签承担了"学什么"，学生可以把容量花在"高分辨率特征"上。
+#       而且 896 成员的误差结构与 768 不同（这正是我们要的多样性）。
+#
+# 延迟：S@896 ≈ 15.4ms，塞进 5 模型仍是 ~60ms/study。
+#
+# 判据：单体 ≥0.806 且融合 ≥0.8120
+# 成本：12 轮 × 约 25 分钟 ≈ 5 小时（放晚上跑）
+
+run_name: distill_s896_aug
+seed: 51
+
+data:
+  cache_size: 896
+  image_size: 896
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 8
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: true
+
+train:
+  epochs: 12
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.5
+  distill_probs: outputs/preds/teacher_train_probs.npy
+
+eval:
+  agg: mean

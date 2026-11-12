@@ -1,0 +1,62 @@
+# 蒸馏学生（第三代）：ConvNeXt-S@896，教师 = 3×896 集成
+#
+# ## 为什么之前失败
+# exp060 用 3×896 教师去蒸 S@768 学生 → 0.8064，比不蒸还差。
+# 原因：教师是 896 尺度下的判断，768 学生学不来。
+#
+# ## 这次修正
+# 学生也做 896 —— 尺度和教师一致，软标签才可能被吸收。
+# 而且 S@896 当初是用旧的 768/512 教师（teacher_train_probs.npy）训的，
+# 换成 3×896 教师重蒸一次，有机会突破 0.8120。
+#
+# ## 判据
+#   S@896（旧教师）= 0.8120
+#   ≥0.814 → 换掉旧 S@896，双模型集成可能到 0.816+
+#   0.812–0.814 → 边际
+#   <0.812 → 强教师对同分辨率学生也无效，蒸馏路线彻底关闭
+#
+# ## 成本
+#   12 轮 × 约 38 分钟 ≈ 7.5 小时（过夜）
+
+run_name: distill_s896_t2
+seed: 110
+
+data:
+  cache_size: 896
+  image_size: 896
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 8
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: true
+
+train:
+  epochs: 12
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.9
+  distill_probs: outputs/preds/teacher2_train_probs.npy
+
+eval:
+  agg: mean

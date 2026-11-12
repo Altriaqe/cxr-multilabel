@@ -1,0 +1,44 @@
+# ResNet50 @768（重跑版）—— 只修正 lr
+#
+# 上一版（exp003）失败的原因是 lr 被降到 2e-4：
+#   等效 batch 仍是 32（8 × 累积 4），按线性缩放规则 lr 不该降。
+# 本版与上一版**唯一的差别**就是 lr 回到 3e-4，其余全部保持一致，方便单变量对比。
+#
+# 实测节奏：768@bs8 约 29.5 分钟/轮 → 15 轮约 7.4 小时（适合过夜）。
+# 前置：data/cache/*_768.npy 已存在（不需要重建）。
+
+run_name: resnet50_768_v2
+seed: 42
+
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: resnet50
+  pretrained: true
+  drop: 0.4
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 15
+  lr: 0.0003            # ← 唯一的修正点（上一版是 2e-4）
+  weight_decay: 0.0001
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

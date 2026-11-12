@@ -1,0 +1,67 @@
+# ConvNeXt-S @512 —— 容量路线（Exp016）
+#
+# ## 为什么试更大骨干
+#
+# 截至 10-25，所有"不换架构"的提分手段都已走到边际：
+#   加集成成员：单→2 路 +1.53 / 2→3 +0.84 / 3→4 +0.10 / 4→5 +0.008 / 5→6 +0.0008
+#   加数据（train+valid）：本地无法评估，只能靠提交验证
+#   验证精度/数据加载/批量增强：三项测速全部零收益或负收益
+#
+# 唯一还没动过的杠杆是**单体容量**。ConvNeXt-T 是 27.8M（单体 9类 0.7994），
+# ConvNeXt-S 是 49.5M，参数量 1.8 倍，是同一族里最平滑的升级。
+#
+# ## 为什么不并 valid
+#
+# 今天是教训：exp015 并入 valid 后本地再无干净验证集，只能靠提交赌。
+# 本配置**只用 train 训练，valid 保持纯净**，用来选模。
+# 若确实想吃那 4.6% 数据，先用 `build_holdout_split` 切内部 holdout（见 merge.py）。
+#
+# ## 显存与时间预算
+#
+# ConvNeXt-T 在 bs16 峰值 7.0 GB / 59 img/s。
+# ConvNeXt-S 参数量 1.8 倍、激活相近 -> bs8 约 5.5 GB，安全。
+# 等效 batch 用 grad_accum 4 补回 32（与 exp010 一致，保持 lr 可比）。
+# 预计吞吐 ~35 img/s -> 14.5 min/轮 -> 10 轮约 2.4 小时。
+#
+# ## 判据
+#
+# 单体 9类+TTA ≥ 0.803 -> 进集成；否则放弃容量路线，转多 seed 平均。
+
+run_name: convnext_small_512
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 10
+  lr: 0.00004          # 与 exp010 相同：ConvNeXt 族用 4e-5（1e-4 起会塌缩）
+  weight_decay: 0.05
+  grad_accum: 4        # bs8 x 4 = 等效 32
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: true       # 保持 fp32：审计要求 hashes.csv 的 val_auc 可精确复现
+  ema_decay: 0.0       # §E5：停止 EMA
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

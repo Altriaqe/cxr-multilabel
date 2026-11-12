@@ -1,0 +1,70 @@
+# ConvNeXt-T @512 —— 架构多样性（第 3 个集成成员）
+#
+# ## 为什么选 ConvNeXt
+# 目前唯一被验证有效的多样性来源是"换架构"——DN121 加入后 R50+DN121 = 0.8072，
+# 比最好的单模型 0.8030 高 +0.004。而同架构换分辨率（R50@640）、换 seed（s43）、
+# 换预训练域（CXR）三次尝试全部失败，因为它们与已有模型"太像"。
+# ConvNeXt 的大 kernel depthwise 归纳偏置与 ResNet/DenseNet 差别最大，相关性最低。
+#
+# ## ⚠️ 学习率必须比 ResNet 低一个数量级（2026-10-23 实测）
+#
+# 按 ConvNeXt 官方配方填 lr=4e-4 会**彻底塌缩**，症状极具欺骗性：
+#   train loss 正常（0.30~0.38）、不报错、不崩溃，
+#   但 val AUC 恒等于 0.5000、F1 恒等于 0.0000 —— 模型输出与输入无关，权重一步没学到。
+#
+# 实测（120 步后输出 logits 的批内标准差，塌缩则趋近 0）：
+#   ResNet50    lr 3e-4   wd 1e-4  -> std 0.9136  OK
+#   ConvNeXt-T  lr 4e-4   wd 0.05  -> std 0.0002  塌缩
+#   ConvNeXt-T  lr 1.2e-4 wd 0.05  -> std 0.0009  塌缩
+#   ConvNeXt-T  lr 4e-5   wd 0.05  -> std 0.2785  OK
+# 并且 4e-5 连跑 500 步保持稳定（std 0.53~1.10，loss 0.365->0.341）。
+#
+# 根因：ConvNeXt 官方配方用**分层学习率衰减（LLRD 0.65~0.8）**——头部高 lr、骨干低 lr。
+# 本项目未实现 LLRD，直接对全模型施加"头部级"的 lr，骨干被打崩。
+# 4e-5 恰好接近 LLRD 下骨干的有效学习率，所以能稳住。
+#
+# 注意：这不是 AMP 的问题。已用 fp16/bf16 对照验证，两者梯度都正常（grad_norm 8.2/8.6，
+# 无非有限值），所以 `amp_dtype: bf16` 只是数值上更保险，**不是**这个病的原因。
+#
+# ## 其他
+# 速度实测 9.3 分钟/轮（远快于早期 bench 估的 25.6 分钟），20 轮约 3.1 小时。
+# 显存峰值 7.0/8.0 GB，偏紧但可跑；若 OOM 把 batch_size 降到 12。
+
+run_name: convnext_tiny_512
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: convnext_tiny
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 14          # 15:50 重启，14 轮 x 10.5 min = 2.5h -> 18:20 完成，留足 21:00 提交时间
+  lr: 0.00004          # <<< 关键：比 ResNet 的 3e-4 低一个数量级，否则塌缩（见上）
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  ema_decay: 0.999      # 权重指数滑动平均
+  a_decay: 0.999      # 权重指数滑动平均：压掉最后一轮没训好的风险
+  amp_dtype: bf16      # 数值更保险（指数范围同 fp32）；非塌缩的病因
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

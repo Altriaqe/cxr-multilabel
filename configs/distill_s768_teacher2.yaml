@@ -1,0 +1,62 @@
+# 蒸馏学生（第二代教师）：ConvNeXt-S@768，α=0.9 + 强增强
+#
+# ## 与第一代的区别
+# 第一代教师 = 9 个 768/512 模型，集成 val ≈ 0.8086
+# 第二代教师 = **加上 S@896（val 0.8120）**，集成 val 预期 0.813–0.815
+#   → 学生上限被抬高
+#
+# ## 为什么用 S 而不是 T
+# S@768 的单体上限更高（S_aug 0.8075 vs T05 0.8049），
+# 交付耗时只多约 5ms（S 前向 15ms vs T 12ms），仍远低于 100ms。
+#
+# ## 判据
+#   第一代最好学生 T09 = 0.8086（logit_mean 口径）
+#   ≥0.812 → 新交付模型（+ 患者平滑预期 77.9+）
+#   0.809–0.812 → 边际，看平滑后是否更高
+#   <0.809 → 教师变强但学生没跟上，说明学生容量到顶
+#
+# ## 成本
+#   12 轮 × 约 12 分钟 ≈ 2.5 小时
+
+run_name: distill_s768_teacher2
+seed: 100
+
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 8
+  scale: [0.65, 1.0]
+  rotate: 10.0
+  jitter: 0.3
+  erasing: 0.35
+  crop_ratio: [0.85, 1.15]
+  ra_ops: 2
+  ra_mag: 7
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 12
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  distill_alpha: 0.9
+  distill_probs: outputs/preds/teacher2_train_probs.npy
+
+eval:
+  agg: mean

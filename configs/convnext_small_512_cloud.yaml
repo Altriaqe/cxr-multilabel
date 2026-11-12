@@ -1,0 +1,51 @@
+# ConvNeXt-S @512 —— 云端版（vGPU-32GB）
+#
+# 与 convnext_small_512.yaml 的**唯一差别**是显存/机器相关的四个参数：
+#   batch_size      8 → 32     （32 GB 显存放得下；本机 8 GB 放不下）
+#   eval_batch_size 8 → 32
+#   grad_accum      4 → 1      （保持等效 batch = 32，lr 可比；step 数少一半，更快）
+#   num_workers     2 → 8      （Linux fork，worker 共享父进程内存）
+#   val_fp32     true → false  （云端验证只做监控，不用于审计；省 26% 验证时间）
+#
+# 其余（arch / lr 4e-5 / wd 0.05 / drop / 增强 / 10 轮）完全相同，结果可直接对比。
+# 显存预估：ConvNeXt-S@512 bs32 约 14 GB，32 GB 安全。
+# 若 OOM：bs 降到 16、grad_accum 提到 2。
+
+run_name: convnext_small_512_cloud
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 32
+  eval_batch_size: 32
+  num_workers: 8
+  scale: [0.80, 1.0]     # 与本地版一致，保持单变量可比
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 10
+  lr: 0.00004
+  weight_decay: 0.05
+  grad_accum: 1
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  ema_decay: 0.0
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

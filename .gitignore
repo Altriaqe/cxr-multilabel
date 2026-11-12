@@ -1,0 +1,32 @@
+﻿# 数据与权重（不入库）
+data/
+cxr_first/
+checkpoints/
+outputs/
+dist/
+*.npy
+*.npz
+*.pth
+*.pt
+*.onnx
+*.engine
+*.zip
+*.tar
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 本地配置
+.env
+*.local.yaml

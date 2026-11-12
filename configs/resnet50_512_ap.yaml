@@ -1,0 +1,54 @@
+# ResNet50 @512 + AP 视图过采样（Exp004）
+#
+# ## 动机
+# 线上 test 的 study 级视图构成是 AP 62.6% / PA 13.3% / 侧位 19.2%，
+# 而训练集是 AP 53.8% / PA 19.6% / 侧位 23.6%。而 ResNet50 在 AP 组只有 0.7223，
+# 在 PA 组有 0.8684 —— **AP 是最难的一组，却恰好是 test 里最多的一组**。
+#
+# 把训练分布往 AP 拉，是做数据层面的对冲，而不是在模型层面打补丁。
+#
+# ## 过采样倍数的选择（实测）
+#   boost=1.4 -> 训练集 AP 62.0%
+#   boost=1.5 -> 训练集 AP 63.3%
+# 取 1.45，正好对齐 test 的 62.6%。不做更激进的加权（会牺牲 PA 样本量）。
+#
+# ## 与 Exp001 的差别（只改一处）
+# 仅增加 `data.ap_oversample: 1.45`；其余（架构、lr、增强、epochs）与 exp001 完全一致，
+# 便于干净对比。epochs 从 15 提到 20，因为过采样后每个 epoch 见到的独立样本变少。
+
+run_name: resnet50_512_ap
+seed: 42
+
+data:
+  cache_size: 576
+  image_size: 512
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+  ap_oversample: 1.45        # <<< 唯一新增项
+
+model:
+  arch: resnet50
+  pretrained: true
+  drop: 0.4
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 20
+  lr: 0.0003
+  weight_decay: 0.0001
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  loss: bce
+  pos_weight: false
+  freeze_backbone_epochs: 0
+
+eval:
+  agg: logit_mean

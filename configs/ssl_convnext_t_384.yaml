@@ -1,0 +1,48 @@
+# ConvNeXt-T @384 自监督预训练（SimCLR-lite）
+#
+# ## 合规依据
+# 答疑明确「可以用比赛训练集做自监督/无监督预训练，但测试集禁止参与」（规则第 2、5 条）。
+#   * 只用 cxr_first/train：18,513 study / 30,344 图
+#   * valid 不进 SSL —— 规则第 3 条：验证集一旦并入训练就不能再用于选模
+#   * 不使用任何外部医学影像数据（规则第 2 条）
+#   * 初始化用 ImageNet（非医学领域开源权重，规则第 1 条允许）
+#
+# ## 为什么 384 而不是 512
+# 384 比 512 便宜 1.8 倍算力；缓存是 576，RandomResizedCrop 到 384 裁剪余量充足。
+# SSL 学到的是"胸片的通用特征"，不需要和微调完全同分辨率。
+#
+# ## 训练预算
+# batch 64（8GB 卡上限，含两个视图相当于 128 张前向）+ 12 轮。
+# 实测约 12~15 分钟/轮 -> 2.5~3 小时。显存不够就把 batch_size 降到 48。
+#
+# ## 产物
+#   checkpoints/ssl_convnext_t_384/epochNN.pth    每轮（审计）
+#   checkpoints/ssl_convnext_t_384/hashes.csv     每轮 SHA-256
+#   checkpoints/ssl_convnext_t_384/last.pth       最新一轮
+
+run_name: ssl_convnext_t_384
+
+data:
+  cache_size: 576
+  image_size: 320
+  batch_size: 32
+  num_workers: 2
+
+model:
+  arch: convnext_tiny
+  pretrained: true       # ImageNet 起始（规则允许）；纯随机需 20+ 轮，成本翻倍
+  proj_dim: 128
+  hidden: 2048
+  grad_checkpointing: true
+
+train:
+  epochs: 12
+  lr: 0.0001
+                         # (loss 恒定在 ln(63)=4.156，表示完全均匀)。
+                         # 10-24 标定：4e-5 稳定，1.2e-4 已塌缩。LayerNorm 架构必须低 lr。
+  min_lr: 0.00001
+  weight_decay: 0.05
+  warmup_epochs: 2
+  grad_accum: 1
+  amp: true
+  temp: 0.2

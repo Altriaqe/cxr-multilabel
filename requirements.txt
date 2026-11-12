@@ -1,0 +1,18 @@
+# 提交包依赖（cost.py 运行所需）
+#
+# ★ 官方口径（11-04 答疑）：评测机**已预装** torch 2.10.0 (CUDA 12.8/cuDNN 9) 与 torchvision 0.25.0；
+#   pip 安装是**追加**，因此本文件**故意不写 torch/torchvision**，避免覆盖预装版本导致 CUDA 不可用。
+#   若评测机缺少 torch 而需要自行安装，请显式指定与镜像一致的版本：
+#       torch==2.10.0 torchvision==0.25.0  （配 CUDA 12.8 官方 wheel 源）
+#
+# 本包实际需要（其余为 torch 自带依赖）：
+timm>=1.0.30
+opencv-python-headless>=4.10
+numpy>=2.0
+Pillow>=10.0
+
+# 说明
+#  - cost.py 只用 torch / torchvision / cv2 / numpy / timm，不需要 pandas、sklearn、pyyaml。
+#  - 解码统一走 cv2（与训练期缓存构建一致）；不同 cv2 版本的解码结果可能差 ~1e-2，
+#    因此本文件锁 `>=4.10`，实际评测机版本以镜像为准；我们已用"同一份 cost.py 生成
+#    submission.csv"的方式保证一致性，版本差异只影响绝对精度、不影响两者之间的一致性。

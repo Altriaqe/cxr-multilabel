@@ -1,0 +1,55 @@
+# ConvNeXt-S @768 + Mixup/CutMix + 20 轮
+#
+# 动机（2026-10-28）：
+#   10 轮的 S@768 在 ep7 见顶（0.8035）后回落（ep10 0.7966）→ 说明不是"训不够"，
+#   而是**过拟合来得太早**。所以拉长到 20 轮的同时必须加强正则：
+#     * Mixup / CutMix（官方《补充说明》第六条明确允许）
+#     * lr 从 4e-5 降到 3.5e-5
+#     * drop 保持 0.3
+#
+# 判据：单体 9类+TTA ≥ 0.806 才算有效（当前最强 0.8050）。
+#
+# 显存：S@768 bs16 约 12–14 GB，32 GB 卡安全；OOM 就 bs12 / accum3。
+
+run_name: convnext_s_768_mixup
+seed: 42
+
+data:
+  cache_size: 768
+  image_size: 768
+  batch_size: 16
+  eval_batch_size: 16
+  num_workers: 8
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: convnext_small
+  pretrained: true
+  drop: 0.3
+  drop_path: 0.1
+  grad_checkpointing: false
+
+train:
+  epochs: 20
+  lr: 0.000035
+  weight_decay: 0.05
+  grad_accum: 2
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  amp_dtype: bf16
+  val_fp32: false
+  loss: bce
+  pos_weight: false
+
+  # Mixup / CutMix：每个 batch 以 mixup_prob 的概率做一次混合，
+  # 混合时在 mixup 与 cutmix 之间各 50% 概率
+  mixup_alpha: 0.2
+  cutmix_alpha: 1.0
+  mixup_prob: 0.5
+
+eval:
+  agg: mean

@@ -1,0 +1,42 @@
+# DenseNet121 @640 —— 分辨率 × 架构 的双重多样性（保守路线第二步）
+#
+# 依据：DN121@512 是目前最好的单模型（val 0.7992），把它升到 640，
+# 既能吃到分辨率红利，又与 R50@640 形成"架构 + 分辨率"双重差异，集成收益更稳。
+#
+# 显存预算：DN121@512 bs16 峰值 5.33 GB → 640 面积 1.56x、bs 减半 → 约 4.2 GB，安全。
+# 单轮预估：DN121@512 是 13.6 min/轮，640 约 21 min/轮 → 15 轮约 5.3 小时（过夜）。
+
+run_name: densenet121_640
+seed: 42
+
+data:
+  cache_size: 704
+  image_size: 640
+  batch_size: 8
+  eval_batch_size: 8
+  num_workers: 2
+  scale: [0.80, 1.0]
+  rotate: 7.0
+  jitter: 0.2
+  erasing: 0.25
+
+model:
+  arch: densenet121
+  pretrained: true
+  drop: 0.2
+  drop_path: 0.0
+  grad_checkpointing: false
+
+train:
+  epochs: 15
+  lr: 0.0003
+  weight_decay: 0.0001
+  grad_accum: 4
+  grad_clip: 1.0
+  warmup_epochs: 1.0
+  amp: true
+  loss: bce
+  pos_weight: false
+
+eval:
+  agg: logit_mean
