@@ -18,6 +18,31 @@
 
 ---
 
+## 权重下载
+
+微调后的权重**不随仓库分发**（体积 + 上游数据条款），单独托管在 Hugging Face：
+
+```
+https://huggingface.co/Altriaqe/cxr-convnext-896-ensemble
+```
+
+```bash
+pip install -U huggingface_hub
+hf download Altriaqe/cxr-convnext-896-ensemble --local-dir weights
+```
+
+下载后把 `members.json` 里的 `ckpt` 路径改成本地路径即可：
+
+```json
+[{"name": "S896", "ckpt": "weights/exp066_s896_24ep_best.pth",
+  "image_size": 896, "cache_size": 896}, ...]
+```
+
+> ⚠️ **数据集不公开**。本仓库不附带任何影像数据；训练数据请自行获取，
+> 并按 `train.py` 的目录约定组织。
+
+---
+
 ## 目录结构
 
 ```
