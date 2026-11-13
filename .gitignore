@@ -1,9 +1,13 @@
-﻿# 数据与权重（不入库）
-data/
-cxr_first/
-checkpoints/
-outputs/
-dist/
+# ---- 数据与权重（不入库）----
+# 注意：只忽略**仓库根目录**下的数据/权重目录，
+# 不要写成 `data/`——那会把源码包 src/data/ 一起排除掉。
+/data/
+/cxr_first/
+/checkpoints/
+/outputs/
+/dist/
+/weights/
+/opensource/
 *.npy
 *.npz
 *.pth
@@ -12,21 +16,30 @@ dist/
 *.engine
 *.zip
 *.tar
+*.safetensors
 
-# Python
+# 显式保留源码目录
+!src/data/
+!src/data/**
+
+# ---- Python ----
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 *.egg-info/
 .pytest_cache/
+build/
+dist/
 
-# 编辑器 / 系统
+# ---- 编辑器 / 系统 ----
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
 
-# 本地配置
+# ---- 本地配置 / 凭据 ----
 .env
 *.local.yaml
+token.txt
+*.token
