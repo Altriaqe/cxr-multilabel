@@ -1,5 +1,14 @@
 # CXR Multi-Label Classification
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c.svg)](https://pytorch.org/)
+[![timm](https://img.shields.io/badge/timm-ConvNeXt-blueviolet.svg)](https://github.com/huggingface/pytorch-image-models)
+[![Latency](https://img.shields.io/badge/latency-62%20ms%2Fstudy-brightgreen.svg)](#实测结果)
+[![Model size](https://img.shields.io/badge/size-295%20MB%20%2F%20500%20MB-informational.svg)](#实测结果)
+[![Weights](https://img.shields.io/badge/%F0%9F%A4%97_weights-Hugging%20Face-yellow.svg)](https://huggingface.co/Altriaqe/cxr-convnext-896-ensemble)
+[![GitHub stars](https://img.shields.io/github/stars/Altriaqe/cxr-multilabel?style=social)](https://github.com/Altriaqe/cxr-multilabel)
+
 > 胸部 X 光片 10 类多标签分类的完整实现：训练、蒸馏、集成、患者级后处理，
 > 以及一个满足「**≤100 ms/study 端到端** + **≤500 MB 推理权重**」双硬约束的推理包。
 
@@ -9,12 +18,27 @@
 
 ---
 
+## 一览
+
+| 指标 | 数值 |
+|---|---|
+| 端到端延迟（T4 级硬件，study 口径） | **~62 ms** / 上限 100 ms |
+| 推理权重 | **295 MB** / 上限 500 MB |
+| 验证集 9 类宏 AUC | **0.8167**（双模型 + 患者平滑） |
+| 模型 | ConvNeXt-Small@896 + ConvNeXt-Tiny@896 |
+| 推理精度 | FP16 |
+| 被实测证伪的方向 | 17 个（全部保留数据） |
+
+---
+
 ## 亮点
 
-* **端到端 60–70 ms/study**（T4 级硬件），其中约 25 ms 的节省来自把 JPEG 解码与缩放全部搬到 GPU
-* **推理权重 295 MB**（上限 500 MB），双模型集成
-* **受控实验记录**：17 个方向被实测证伪，全部保留数据（见 `docs/技术报告.md`）
-* **可复现的计时脚本**：`cost.py` 按官方接口实现，输出 `[CONCLUSION]` 行
+* **延迟优化的关键是把预处理搬到 GPU**：CPU 解码 + `cv2.resize` 在 8 核 Xeon 上合计 ~60 ms/图，
+  改 nvJPEG + GPU 缩放后降到 ~35 ms/图，直接决定方案能否落进 100 ms
+* **17 个方向被实测证伪**并完整保留数据（医学预训练、更大骨干、更高分辨率、更强教师、TTA……），
+  避免后来者重复踩坑
+* **`cost.py` 按官方接口实现**：位置参数、`[CONCLUSION]` 输出、不产生文件，
+  与 `code/predict.py` 共用同一套推理函数
 
 ---
 
